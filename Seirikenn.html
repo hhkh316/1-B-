@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>整理券システム</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root{
+    --bg:#12203f; --bg-deep:#0d182f; --surface:#1c2f56; --surface-alt:#25396a;
+    --line:rgba(244,185,66,0.28); --accent:#f2542d; --accent-glow:rgba(242,84,45,0.55);
+    --gold:#f4b942; --text:#f7f2e6; --text-muted:#9fb0d1; --danger:#e2543a;
+  }
+  *{box-sizing:border-box;} html,body{margin:0;padding:0;}
+  body{
+    background:radial-gradient(circle at 15% 12%,rgba(244,185,66,.10),transparent 40%),
+      radial-gradient(circle at 85% 8%,rgba(242,84,45,.10),transparent 38%),
+      radial-gradient(circle at 50% 100%,rgba(244,185,66,.06),transparent 45%),var(--bg-deep);
+    color:var(--text);font-family:'Zen Kaku Gothic New',sans-serif;min-height:100vh;
+    display:flex;justify-content:center;padding:28px 16px 60px;
+  }
+  .app{width:100%;max-width:460px}.top-row{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:22px}
+  .brand{font-size:13px;color:var(--text-muted);letter-spacing:.02em}.brand b{color:var(--gold);font-weight:700}
+  .staff-link{background:none;border:none;color:var(--text-muted);font-size:12px;font-family:inherit;cursor:pointer;padding:6px 4px;text-decoration:underline;text-underline-offset:3px}
+  .staff-link:hover{color:var(--gold)}
+  h1.event-name{font-family:'M PLUS Rounded 1c',sans-serif;font-weight:800;font-size:26px;margin:0 0 4px;line-height:1.3}
+  .sub{color:var(--text-muted);font-size:14px;margin:0 0 26px}
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px;margin-bottom:16px}
+  .now-serving{text-align:center;margin-bottom:8px}.now-serving .label{font-size:13px;color:var(--text-muted)}
+  .now-serving .num{font-family:'M PLUS Rounded 1c',sans-serif;font-weight:800;font-size:44px;color:var(--gold);line-height:1.15}
+  .ticket-stub{position:relative;background:var(--surface-alt);border-radius:16px;padding:26px 20px 22px;text-align:center;margin-top:18px;
+    background-image:radial-gradient(circle 6px at 0 50%,var(--bg-deep) 6px,transparent 7px),radial-gradient(circle 6px at 100% 50%,var(--bg-deep) 6px,transparent 7px);
+    background-repeat:no-repeat;background-position:left center,right center}
+  .ticket-stub::before{content:"";position:absolute;left:26px;right:26px;top:0;border-top:2px dashed var(--line)}
+  .ticket-stub .tlabel{font-size:13px;color:var(--text-muted);margin-top:6px}
+  .ticket-stub .tnum{font-family:'M PLUS Rounded 1c',sans-serif;font-weight:800;font-size:76px;color:var(--accent);line-height:1.05;text-shadow:0 0 28px var(--accent-glow);margin:2px 0 6px}
+  .status-msg{font-size:14px;color:var(--text);min-height:20px}.status-msg.calling{color:var(--accent);font-weight:700}
+  .hint{font-size:12px;color:var(--text-muted);margin-top:14px}
+  button.cta{width:100%;font-family:'Zen Kaku Gothic New',sans-serif;font-weight:700;font-size:17px;padding:16px;border-radius:14px;border:none;cursor:pointer;background:var(--accent);color:#fff7ef;box-shadow:0 8px 22px -6px var(--accent-glow);transition:transform .12s ease,box-shadow .12s ease}
+  button.cta:active{transform:translateY(1px) scale(.99)} button.cta:disabled{opacity:.55;cursor:default;box-shadow:none}
+  button.ghost{width:100%;background:transparent;border:1px solid var(--line);color:var(--text);font-family:inherit;font-weight:500;font-size:14px;padding:12px;border-radius:12px;cursor:pointer}
+  button.ghost:hover{border-color:var(--gold)} button.ghost:disabled{opacity:.45;cursor:default}
+  button.small{background:var(--surface-alt);border:1px solid var(--line);color:var(--text-muted);font-family:inherit;font-size:13px;padding:9px 12px;border-radius:10px;cursor:pointer}
+  button.small:hover{color:var(--gold);border-color:var(--gold)}
+  .stat-row{display:flex;gap:12px;margin-bottom:18px}.stat{flex:1;background:var(--surface-alt);border-radius:12px;padding:14px;text-align:center;border:1px solid var(--line)}
+  .stat .n{font-family:'M PLUS Rounded 1c',sans-serif;font-weight:800;font-size:28px;color:var(--gold)}.stat .l{font-size:12px;color:var(--text-muted);margin-top:2px}
+  .call-block{text-align:center;margin-bottom:8px}.call-block .next-num{color:var(--accent);font-weight:800}.undo-row{display:flex;justify-content:center;margin-top:10px}
+  .divider{display:flex;align-items:center;gap:10px;margin:22px 0 14px;color:var(--text-muted);font-size:12px}
+  .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line)}
+  label.field-label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:6px}
+  input.text-input{width:100%;background:var(--bg-deep);border:1px solid var(--line);color:var(--text);font-family:inherit;font-size:15px;padding:11px 12px;border-radius:10px}
+  input.text-input:focus{outline:none;border-color:var(--gold)}
+  .qr-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:8px}#qrcode{background:#fdf8ee;padding:12px;border-radius:12px}
+  .qr-url{font-size:12px;color:var(--text-muted);word-break:break-all;text-align:center}
+  .history{list-style:none;margin:10px 0 0;padding:0;max-height:220px;overflow-y:auto}
+  .history li{display:flex;justify-content:space-between;align-items:center;padding:9px 4px;border-bottom:1px solid var(--line);font-size:13px}
+  .history li:last-child{border-bottom:none}.history .badge{font-size:11px;padding:2px 8px;border-radius:20px;background:var(--surface-alt);color:var(--text-muted)}
+  .history .badge.qr{color:var(--gold)}.history .empty{color:var(--text-muted);font-size:13px;padding:8px 4px}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--surface-alt);border:1px solid var(--gold);color:var(--text);padding:11px 18px;border-radius:12px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .25s ease,bottom .25s ease}
+  .toast.show{opacity:1;bottom:34px}.pin-box{display:flex;gap:8px}.pin-box input{flex:1;text-align:center;letter-spacing:4px}.pin-box button{flex-shrink:0}
+  .error-text{color:var(--accent);font-size:12px;margin-top:8px}.admin-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+  .admin-header h1{font-family:'M PLUS Rounded 1c',sans-serif;font-weight:800;font-size:20px;margin:0}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getDatabase, ref, get, set, onValue } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey:"AIzaSyC82GZLUSJADwRC6HTiIjg-Dq-A6Q0PmoA",
+  authDomain:"exit1b-ticket.firebaseapp.com",
+  databaseURL:"https://exit1b-ticket-default-rtdb.firebaseio.com",
+  projectId:"exit1b-ticket",
+  storageBucket:"exit1b-ticket.firebasestorage.app",
+  messagingSenderId:"577169423952",
+  appId:"1:577169423952:web:616f833ce8d33952b4db55",
+};
+const firebaseApp=initializeApp(firebaseConfig);
+const db=getDatabase(firebaseApp);
+const dataRef=ref(db,'seiriken/data');
+const STAFF_PIN='1234';
+
+let mode='visitor',isStaff=false,myTicket=null,myTicketSource=null,myPartySize=null,busy=false;
+
+function defaultData(){return{eventName:'整理券発行',nextNumber:1,calledNumber:0,tickets:[]};}
+async function loadData(){try{const snap=await get(dataRef);return snap.exists()?normalizeData(snap.val()):defaultData();}catch(e){console.error('load error',e);return defaultData();}}
+async function saveData(data){try{await set(dataRef,data);return true;}catch(e){console.error('storage error',e);return false;}}
+function normalizeData(raw){
+  const d=Object.assign(defaultData(),raw||{});
+  d.tickets=Array.isArray(d.tickets)?d.tickets:Object.values(d.tickets||{});
+  return d;
+}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
+function fmtTime(ts){const d=new Date(ts);return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');}
+
+let currentData=defaultData(),notifyEnabled=false,lastCalledNumber=null,audioCtx=null;
+function unlockAudio(){try{audioCtx=audioCtx||(new(window.AudioContext||window.webkitAudioContext)());if(audioCtx.state==='suspended')audioCtx.resume();}catch(e){}}
+function playChime(){
+  try{
+    if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended')audioCtx.resume();
+
+    const now=audioCtx.currentTime;
+
+    // 「ピンポーン♪」風の2音チャイム
+    const notes=[
+      {freq:784, start:0, duration:.42, volume:.32},
+      {freq:523.25, start:.30, duration:.75, volume:.34}
+    ];
+
+    notes.forEach(note=>{
+      const osc=audioCtx.createOscillator();
+      const gain=audioCtx.createGain();
+
+      osc.type='sine';
+      osc.frequency.setValueAtTime(note.freq,now+note.start);
+
+      gain.gain.setValueAtTime(.0001,now+note.start);
+      gain.gain.exponentialRampToValueAtTime(note.volume,now+note.start+.025);
+      gain.gain.exponentialRampToValueAtTime(.0001,now+note.start+note.duration);
+
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(now+note.start);
+      osc.stop(now+note.start+note.duration+.03);
+    });
+  }catch(e){console.error('audio error',e);}
+}
+
+async function enableNotify(){
+  unlockAudio();playChime();if('vibrate'in navigator)navigator.vibrate(80);
+  if('Notification'in window&&Notification.permission==='default'){try{await Notification.requestPermission();}catch(e){}}
+  notifyEnabled=true;render();
+}
+function fireCalledAlert(){
+  playChime();setTimeout(playChime,650);if('vibrate'in navigator)navigator.vibrate([200,100,200,100,200]);
+  if('Notification'in window&&Notification.permission==='granted'){try{new Notification('番号が呼ばれました',{body:`No.${myTicket} の番です`,tag:'seiriken-call'});}catch(e){}}
+}
+
+function render(){
+  const app=document.getElementById('app');
+  if(mode==='admin'&&isStaff){app.innerHTML=renderAdmin(currentData);bindAdminEvents();}
+  else if(mode==='staffLogin'){app.innerHTML=renderStaffLogin();bindStaffLoginEvents();}
+  else{app.innerHTML=renderVisitor(currentData);bindVisitorEvents();}
+}
+
+function renderVisitor(data){
+  let stub='';
+  if(myTicket!==null){
+    const my=myTicket,called=data.calledNumber;let msg='',calling=false;
+    if(my===called){msg='ただいま呼び出し中です。窓口へお越しください';calling=true;}
+    else if(my>called){const ahead=my-called-1;msg=ahead<=0?'まもなくです。ご準備ください':`あなたの前に ${ahead} 組`;}
+    else{msg='呼び出しが済んでいます。スタッフへお声がけください';}
+    const savedTicket=data.tickets.find(t=>t.number===my);
+    const partySize=myPartySize||(savedTicket&&savedTicket.partySize)||1;
+    stub=`<div class="ticket-stub"><div class="tlabel">あなたの番号</div><div class="tnum">${my}</div><div class="tlabel">${partySize} 名</div><div class="status-msg ${calling?'calling':''}">${msg}</div></div>
+      ${notifyEnabled?'<p class="hint" style="margin-top:12px;">🔔 呼び出し通知はオンです</p>':'<button class="ghost" id="enable-notify" style="margin-top:12px;">🔔 呼ばれたら音でお知らせする</button>'}
+      <p class="hint">この画面はスクリーンショットしておくと安心です</p>`;
+  }else{
+    stub=`<label class="field-label">人数</label>
+      <input class="text-input" id="party-size-input" type="number" inputmode="numeric" min="1" max="30" value="1" style="text-align:center;margin-bottom:12px;">
+      <button class="cta" id="take-btn" ${busy?'disabled':''}>整理券を取る</button>`;
+  }
+  const calledTicket=data.calledNumber>0?data.tickets.find(t=>t.number===data.calledNumber):null;
+  return `<div class="top-row"><span class="brand">文化祭 <b>整理券</b></span><button class="staff-link" id="to-staff">スタッフの方はこちら</button></div>
+    <h1 class="event-name">${escapeHtml(data.eventName)}</h1><p class="sub">スマホでかんたんに整理券を受け取れます</p>
+    <div class="panel"><div class="now-serving"><div class="label">ただいまの呼び出し番号</div><div class="num">${data.calledNumber>0?data.calledNumber:'—'}</div>
+    ${calledTicket?`<div class="label">${calledTicket.partySize||1} 名</div>`:''}</div>${stub}</div>`;
+}
+
+function renderStaffLogin(){
+  return `<div class="top-row"><span class="brand">文化祭 <b>整理券</b></span><button class="staff-link" id="to-visitor">来場者画面へ戻る</button></div>
+    <div class="panel"><label class="field-label">運営用パスコード</label><div class="pin-box">
+    <input class="text-input" id="pin-input" type="tel" inputmode="numeric" maxlength="8" placeholder="PINを入力">
+    <button class="cta" style="width:auto;padding:12px 18px;" id="pin-submit">入る</button></div>
+    <div class="error-text" id="pin-error" style="display:none;">パスコードが違います</div></div>`;
+}
+
+function renderAdmin(data){
+  const waiting=Math.max(0,data.nextNumber-1-data.calledNumber),nextToCall=data.calledNumber+1;
+  const canCall=nextToCall<=data.nextNumber-1;
+  const nextTicket=data.tickets.find(t=>t.number===nextToCall);
+  const calledTicket=data.calledNumber>0?data.tickets.find(t=>t.number===data.calledNumber):null;
+  const historyItems=data.tickets.slice().reverse().slice(0,15);
+  const historyHtml=historyItems.length?historyItems.map(t=>`<li><span>No. ${t.number}　${t.partySize||1}人　${fmtTime(t.time)}</span><span class="badge ${t.source==='qr'?'qr':''}">${t.source==='qr'?'QR受付':'窓口発行'}</span></li>`).join(''):'<li class="empty">まだ発行履歴はありません</li>';
+  const waitingTickets=data.tickets.filter(t=>t.number>data.calledNumber).sort((a,b)=>a.number-b.number);
+  const waitingListHtml=waitingTickets.length?waitingTickets.map(t=>`<li><span>No. ${t.number}</span><span class="badge">${t.partySize||1} 人</span></li>`).join(''):'<li class="empty">現在お待ちの方はいません</li>';
+  return `<div class="admin-header"><h1>運営パネル</h1><button class="staff-link" id="to-visitor">来場者画面を見る</button></div>
+    <p class="sub" style="margin-top:6px;">${escapeHtml(data.eventName)}</p>
+    <div class="panel"><div class="stat-row">
+    <div class="stat"><div class="n">${data.nextNumber-1}</div><div class="l">発行済み</div></div>
+    <div class="stat"><div class="n">${data.calledNumber>0?data.calledNumber:'—'}</div><div class="l">呼び出し中${calledTicket?'（'+(calledTicket.partySize||1)+'人）':''}</div></div>
+    <div class="stat"><div class="n">${waiting}</div><div class="l">お待ちの組数</div></div></div>
+    <div class="call-block"><button class="cta" id="call-next" ${(!canCall||busy)?'disabled':''}>${canCall?`次を呼ぶ（<span class="next-num">${nextToCall}</span> 番・${nextTicket?(nextTicket.partySize||1):'?'} 人）`:'すべて呼び出し済みです'}</button>
+    <div class="undo-row"><button class="small" id="call-undo" ${(data.calledNumber<=0||busy)?'disabled':''}>ひとつ前に戻す</button></div></div></div>
+    <div class="panel"><div class="divider">待ち一覧（番号・人数）</div><ul class="history" style="max-height:300px;">${waitingListHtml}</ul></div>
+    <div class="panel"><div class="divider">窓口での発行</div><label class="field-label">人数</label>
+    <input class="text-input" id="manual-party-input" type="number" inputmode="numeric" min="1" max="30" value="1" style="text-align:center;margin-bottom:12px;">
+    <button class="ghost" id="manual-issue" ${busy?'disabled':''}>＋ 整理券を発行する</button></div>
+    <div class="panel"><div class="divider">イベント名</div><input class="text-input" id="event-name-input" value="${escapeAttr(data.eventName)}" placeholder="例）たこ焼き屋 整理券"></div>
+    <div class="panel"><div class="divider">来場者用QRコード</div><div class="qr-wrap"><div id="qrcode"></div><div class="qr-url" id="qr-url"></div>
+    <button class="small" id="copy-link">リンクをコピーする</button></div></div>
+    <div class="panel"><div class="divider">発行履歴</div><ul class="history">${historyHtml}</ul></div>
+    <button class="ghost" id="reset-btn" style="border-color:var(--danger);color:var(--danger);">本日の記録をリセット</button>`;
+}
+
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function escapeAttr(s){return escapeHtml(s);}
+
+function bindVisitorEvents(){
+  const toStaff=document.getElementById('to-staff');if(toStaff)toStaff.onclick=()=>{mode='staffLogin';render();};
+  const notifyBtn=document.getElementById('enable-notify');if(notifyBtn)notifyBtn.onclick=enableNotify;
+  const takeBtn=document.getElementById('take-btn');
+  if(takeBtn)takeBtn.onclick=async()=>{
+    if(busy)return;
+    const partyInput=document.getElementById('party-size-input');
+    const partySize=Number(partyInput.value);
+    if(!Number.isInteger(partySize)||partySize<1||partySize>30){showToast('人数は1〜30人で入力してください');return;}
+    busy=true;render();
+    const data=await loadData();
+    const number=data.nextNumber;
+    data.nextNumber+=1;
+    data.tickets.push({number,partySize,time:Date.now(),source:'qr'});
+    if(data.tickets.length>200)data.tickets=data.tickets.slice(-200);
+    const ok=await saveData(data);
+    busy=false;
+    if(ok){myTicket=number;myTicketSource='qr';myPartySize=partySize;currentData=data;}
+    else showToast('通信エラーが発生しました。もう一度お試しください');
+    render();
+  };
+}
+
+function bindStaffLoginEvents(){
+  document.getElementById('to-visitor').onclick=()=>{mode='visitor';render();};
+  const submit=()=>{const val=document.getElementById('pin-input').value.trim();if(val===STAFF_PIN){isStaff=true;mode='admin';render();}else document.getElementById('pin-error').style.display='block';};
+  document.getElementById('pin-submit').onclick=submit;
+  document.getElementById('pin-input').addEventListener('keydown',e=>{if(e.key==='Enter')submit();});
+}
+
+function bindAdminEvents(){
+  document.getElementById('to-visitor').onclick=()=>{mode='visitor';render();};
+  document.getElementById('call-next').onclick=async()=>{
+    if(busy)return;busy=true;render();const data=await loadData();if(data.calledNumber<data.nextNumber-1)data.calledNumber+=1;
+    await saveData(data);currentData=data;busy=false;render();
+  };
+  document.getElementById('call-undo').onclick=async()=>{
+    if(busy)return;busy=true;render();const data=await loadData();if(data.calledNumber>0)data.calledNumber-=1;
+    await saveData(data);currentData=data;busy=false;render();
+  };
+  document.getElementById('manual-issue').onclick=async()=>{
+    if(busy)return;
+    const partyInput=document.getElementById('manual-party-input');
+    const partySize=Number(partyInput.value);
+    if(!Number.isInteger(partySize)||partySize<1||partySize>30){showToast('人数は1〜30人で入力してください');return;}
+    busy=true;render();
+    const data=await loadData();
+    const number=data.nextNumber;
+    data.nextNumber+=1;
+    data.tickets.push({number,partySize,time:Date.now(),source:'staff'});
+    if(data.tickets.length>200)data.tickets=data.tickets.slice(-200);
+    const ok=await saveData(data);
+    currentData=data;busy=false;render();
+    if(ok)showToast(`No.${number}（${partySize}人）を発行しました`);
+    else showToast('通信エラーが発生しました。保存できませんでした');
+  };
+  const nameInput=document.getElementById('event-name-input');
+  nameInput.addEventListener('change',async()=>{const data=await loadData();data.eventName=nameInput.value.trim()||'整理券発行';await saveData(data);currentData=data;showToast('イベント名を保存しました');});
+  document.getElementById('reset-btn').onclick=async()=>{
+    if(!confirm('本日の記録をリセットしますか？整理券番号が1に戻ります。'))return;
+    const data=await loadData();const fresh=defaultData();fresh.eventName=data.eventName;await saveData(fresh);currentData=fresh;myTicket=null;render();showToast('リセットしました');
+  };
+  document.getElementById('copy-link').onclick=()=>{navigator.clipboard.writeText(window.location.href).then(()=>showToast('リンクをコピーしました'),()=>showToast('コピーできませんでした'));};
+  renderQr();
+}
+
+function renderQr(){
+  const url=window.location.href;document.getElementById('qr-url').textContent=url;const holder=document.getElementById('qrcode');holder.innerHTML='';
+  try{
+    if(typeof QRCode!=='undefined')new QRCode(holder,{text:url,width:180,height:180,colorDark:'#12203f',colorLight:'#fdf8ee',correctLevel:QRCode.CorrectLevel.M});
+    else holder.innerHTML='<div style="color:#12203f;font-size:12px;padding:20px;max-width:180px;">QRコードを読み込めませんでした。下のリンクを共有してください。</div>';
+  }catch(e){holder.innerHTML='<div style="color:#12203f;font-size:12px;padding:20px;max-width:180px;">QRコードを読み込めませんでした。下のリンクを共有してください。</div>';}
+}
+
+onValue(dataRef,(snap)=>{
+  const fresh=snap.exists()?normalizeData(snap.val()):defaultData();
+  if(myTicket!==null&&lastCalledNumber!==null&&lastCalledNumber<myTicket&&fresh.calledNumber>=myTicket)fireCalledAlert();
+  lastCalledNumber=fresh.calledNumber;currentData=fresh;if(busy)return;
+  const activeIsInput=document.activeElement&&document.activeElement.id==='event-name-input';
+  if(!activeIsInput)render();
+});
+render();
+</script>
+</body>
+</html>
