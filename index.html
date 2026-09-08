@@ -291,6 +291,57 @@ function fmtTime(ts){
 /* ---------- rendering ---------- */
 
 let currentData = defaultData();
+let notifyEnabled = false;
+let lastCalledNumber = null;
+let audioCtx = null;
+
+function unlockAudio(){
+  try{
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+  }catch(e){}
+}
+
+function playChime(){
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = audioCtx.currentTime;
+    [0, 0.18].forEach((offset, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = i === 0 ? 880 : 1175;
+      gain.gain.setValueAtTime(0.0001, now + offset);
+      gain.gain.exponentialRampToValueAtTime(0.35, now + offset + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.32);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(now + offset);
+      osc.stop(now + offset + 0.35);
+    });
+  }catch(e){ console.error('audio error', e); }
+}
+
+async function enableNotify(){
+  unlockAudio();
+  playChime();
+  if('vibrate' in navigator) navigator.vibrate(80);
+  if('Notification' in window && Notification.permission === 'default'){
+    try{ await Notification.requestPermission(); }catch(e){}
+  }
+  notifyEnabled = true;
+  render();
+}
+
+function fireCalledAlert(){
+  playChime();
+  if('vibrate' in navigator) navigator.vibrate([200,100,200,100,200]);
+  if('Notification' in window && Notification.permission === 'granted'){
+    try{
+      new Notification('番号が呼ばれました', { body: `No.${myTicket} の番です`, tag: 'seiriken-call' });
+    }catch(e){}
+  }
+}
+
 
 function render(){
   const app = document.getElementById('app');
@@ -327,6 +378,9 @@ function renderVisitor(data){
         <div class="tnum">${my}</div>
         <div class="status-msg ${calling ? 'calling' : ''}">${msg}</div>
       </div>
+      ${notifyEnabled
+        ? '<p class="hint" style="margin-top:12px;">🔔 呼び出し通知はオンです</p>'
+        : '<button class="ghost" id="enable-notify" style="margin-top:12px;">🔔 呼ばれたら音でお知らせする</button>'}
       <p class="hint">この画面はスクリーンショットしておくと安心です</p>
     `;
   } else {
@@ -441,6 +495,9 @@ function escapeAttr(s){ return escapeHtml(s); }
 function bindVisitorEvents(){
   const toStaff = document.getElementById('to-staff');
   if(toStaff) toStaff.onclick = () => { mode = 'staffLogin'; render(); };
+
+  const notifyBtn = document.getElementById('enable-notify');
+  if(notifyBtn) notifyBtn.onclick = enableNotify;
 
   const takeBtn = document.getElementById('take-btn');
   if(takeBtn) takeBtn.onclick = async () => {
@@ -570,7 +627,12 @@ function renderQr(){
 /* ---------- realtime updates ---------- */
 // Firebaseのリアルタイム購読。他の端末からの変更も自動で反映される
 onValue(dataRef, (snap) => {
-  currentData = snap.exists() ? normalizeData(snap.val()) : defaultData();
+  const fresh = snap.exists() ? normalizeData(snap.val()) : defaultData();
+  if(myTicket !== null && lastCalledNumber !== null && lastCalledNumber < myTicket && fresh.calledNumber >= myTicket){
+    fireCalledAlert();
+  }
+  lastCalledNumber = fresh.calledNumber;
+  currentData = fresh;
   if(busy) return;
   // 入力中のイベント名を上書きしないようにする
   const activeIsInput = document.activeElement && document.activeElement.id === 'event-name-input';
