@@ -84,9 +84,31 @@ const firebaseConfig = {
 const firebaseApp=initializeApp(firebaseConfig);
 const db=getDatabase(firebaseApp);
 const dataRef=ref(db,'seiriken/data');
-const STAFF_PIN='2525';
+const STAFF_PIN='1234';
 
 let mode='visitor',isStaff=false,myTicket=null,myTicketSource=null,myPartySize=null,busy=false;
+
+// タブを閉じても自分の整理券番号を思い出せるように、この端末のブラウザに保存しておく
+const MY_TICKET_KEY='seiriken-my-ticket';
+function saveMyTicket(number,partySize){
+  try{ localStorage.setItem(MY_TICKET_KEY, JSON.stringify({number,partySize})); }catch(e){}
+}
+function loadMyTicket(){
+  try{
+    const raw=localStorage.getItem(MY_TICKET_KEY);
+    if(!raw) return null;
+    const parsed=JSON.parse(raw);
+    if(typeof parsed.number==='number') return parsed;
+  }catch(e){}
+  return null;
+}
+function clearMyTicket(){
+  try{ localStorage.removeItem(MY_TICKET_KEY); }catch(e){}
+}
+{
+  const saved=loadMyTicket();
+  if(saved){ myTicket=saved.number; myPartySize=saved.partySize||1; }
+}
 
 function defaultData(){return{eventName:'整理券発行',nextNumber:1,calledNumber:0,tickets:[]};}
 async function loadData(){try{const snap=await get(dataRef);return snap.exists()?normalizeData(snap.val()):defaultData();}catch(e){console.error('load error',e);return defaultData();}}
@@ -229,7 +251,7 @@ function bindVisitorEvents(){
     if(data.tickets.length>200)data.tickets=data.tickets.slice(-200);
     const ok=await saveData(data);
     busy=false;
-    if(ok){myTicket=number;myTicketSource='qr';myPartySize=partySize;currentData=data;}
+    if(ok){myTicket=number;myTicketSource='qr';myPartySize=partySize;currentData=data;saveMyTicket(number,partySize);}
     else showToast('通信エラーが発生しました。もう一度お試しください');
     render();
   };
@@ -272,7 +294,7 @@ function bindAdminEvents(){
   nameInput.addEventListener('change',async()=>{const data=await loadData();data.eventName=nameInput.value.trim()||'整理券発行';await saveData(data);currentData=data;showToast('イベント名を保存しました');});
   document.getElementById('reset-btn').onclick=async()=>{
     if(!confirm('本日の記録をリセットしますか？整理券番号が1に戻ります。'))return;
-    const data=await loadData();const fresh=defaultData();fresh.eventName=data.eventName;await saveData(fresh);currentData=fresh;myTicket=null;render();showToast('リセットしました');
+    const data=await loadData();const fresh=defaultData();fresh.eventName=data.eventName;await saveData(fresh);currentData=fresh;myTicket=null;clearMyTicket();render();showToast('リセットしました');
   };
   document.getElementById('copy-link').onclick=()=>{navigator.clipboard.writeText(window.location.href).then(()=>showToast('リンクをコピーしました'),()=>showToast('コピーできませんでした'));};
   renderQr();
@@ -289,6 +311,8 @@ function renderQr(){
 onValue(dataRef,(snap)=>{
   const fresh=snap.exists()?normalizeData(snap.val()):defaultData();
   if(myTicket!==null&&lastCalledNumber!==null&&lastCalledNumber<myTicket&&fresh.calledNumber>=myTicket)fireCalledAlert();
+  // 運営側がリセットして整理券番号が振り出し直されていたら、古い番号は無効にする
+  if(myTicket!==null&&myTicket>fresh.nextNumber-1){myTicket=null;myPartySize=null;clearMyTicket();}
   lastCalledNumber=fresh.calledNumber;currentData=fresh;if(busy)return;
   const activeIsInput=document.activeElement&&document.activeElement.id==='event-name-input';
   if(!activeIsInput)render();
