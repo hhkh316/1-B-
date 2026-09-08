@@ -175,9 +175,9 @@ function renderVisitor(data){
   let stub='';
   if(myTicket!==null){
     const my=myTicket,called=data.calledNumber;let msg='',calling=false;
-    if(my===called){msg='ただいま呼び出し中です。窓口へお越しください';calling=true;}
+    if(my===called){msg='ただいま呼び出し中です。受付へお越しください';calling=true;}
     else if(my>called){const ahead=my-called-1;msg=ahead<=0?'まもなくです。受付前でお待ちください':`あなたの前に ${ahead} 組`;}
-    else{msg='呼び出しが済んでいます。受付スタッフへお声がけください';}
+    else{msg='呼び出しが済んでいます。受付へお声がけください';}
     const savedTicket=data.tickets.find(t=>t.number===my);
     const partySize=myPartySize||(savedTicket&&savedTicket.partySize)||1;
     stub=`<div class="ticket-stub"><div class="tlabel">あなたの番号</div><div class="tnum">${my}</div><div class="tlabel">${partySize} 名</div><div class="status-msg ${calling?'calling':''}">${msg}</div></div>
