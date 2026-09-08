@@ -215,15 +215,34 @@
 <div class="app" id="app"></div>
 <div class="toast" id="toast"></div>
 
-<script>
-const STORAGE_KEY = 'seiriken-data';
+<script type="module">
+/* ==========================================================================
+   Firebase設定：Firebaseコンソールで作成したプロジェクトの値に置き換えてください
+   手順は一緒に送っている説明を参照してください。
+   ========================================================================== */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getDatabase, ref, get, set, onValue } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC82GZLUSJADwRC6HTiIjg-Dq-A6Q0PmoA",
+  authDomain: "exit1b-ticket.firebaseapp.com",
+  databaseURL: "https://exit1b-ticket-default-rtdb.firebaseio.com",
+  projectId: "exit1b-ticket",
+  storageBucket: "exit1b-ticket.firebasestorage.app",
+  messagingSenderId: "577169423952",
+  appId: "1:577169423952:web:616f833ce8d33952b4db55",
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getDatabase(firebaseApp);
+const dataRef = ref(db, 'seiriken/data');
+
 const STAFF_PIN = '1234';
 let mode = 'visitor';       // 'visitor' | 'staffLogin' | 'admin'
 let isStaff = false;
 let myTicket = null;        // number this visitor was issued (session only, like a real paper stub)
 let myTicketSource = null;
 let busy = false;
-let pollTimer = null;
 
 function defaultData(){
   return { eventName: '整理券発行', nextNumber: 1, calledNumber: 0, tickets: [] };
@@ -231,21 +250,30 @@ function defaultData(){
 
 async function loadData(){
   try{
-    const res = await window.storage.get(STORAGE_KEY, true);
-    return res ? JSON.parse(res.value) : defaultData();
+    const snap = await get(dataRef);
+    return snap.exists() ? normalizeData(snap.val()) : defaultData();
   }catch(e){
+    console.error('load error', e);
     return defaultData();
   }
 }
 
 async function saveData(data){
   try{
-    await window.storage.set(STORAGE_KEY, JSON.stringify(data), true);
+    await set(dataRef, data);
     return true;
   }catch(e){
     console.error('storage error', e);
     return false;
   }
+}
+
+// Firebaseは配列の穴あきを詰めて返すことがあるため、tickets が
+// undefined/オブジェクトで返ってきた場合も配列に正規化する
+function normalizeData(raw){
+  const d = Object.assign(defaultData(), raw || {});
+  d.tickets = Array.isArray(d.tickets) ? d.tickets : Object.values(d.tickets || {});
+  return d;
 }
 
 function showToast(msg){
@@ -263,11 +291,6 @@ function fmtTime(ts){
 /* ---------- rendering ---------- */
 
 let currentData = defaultData();
-
-async function refreshAndRender(){
-  currentData = await loadData();
-  render();
-}
 
 function render(){
   const app = document.getElementById('app');
@@ -447,8 +470,7 @@ function bindStaffLoginEvents(){
     const val = document.getElementById('pin-input').value.trim();
     if(val === STAFF_PIN){
       isStaff = true; mode = 'admin';
-      refreshAndRender();
-      startPolling();
+      render();
     } else {
       document.getElementById('pin-error').style.display = 'block';
     }
@@ -545,21 +567,18 @@ function renderQr(){
   }
 }
 
-function startPolling(){
-  if(pollTimer) clearInterval(pollTimer);
-  pollTimer = setInterval(async () => {
-    if(busy) return;
-    const fresh = await loadData();
-    currentData = fresh;
-    // avoid wiping inputs mid-typing in admin name field
-    const activeIsInput = document.activeElement && document.activeElement.id === 'event-name-input';
-    if(!activeIsInput) render();
-  }, 3000);
-}
+/* ---------- realtime updates ---------- */
+// Firebaseのリアルタイム購読。他の端末からの変更も自動で反映される
+onValue(dataRef, (snap) => {
+  currentData = snap.exists() ? normalizeData(snap.val()) : defaultData();
+  if(busy) return;
+  // 入力中のイベント名を上書きしないようにする
+  const activeIsInput = document.activeElement && document.activeElement.id === 'event-name-input';
+  if(!activeIsInput) render();
+});
 
 /* ---------- init ---------- */
-refreshAndRender();
-startPolling();
+render();
 </script>
 </body>
 </html>
