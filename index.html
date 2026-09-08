@@ -242,6 +242,7 @@ let mode = 'visitor';       // 'visitor' | 'staffLogin' | 'admin'
 let isStaff = false;
 let myTicket = null;        // number this visitor was issued (session only, like a real paper stub)
 let myTicketSource = null;
+let myPartySize = null;
 let busy = false;
 
 function defaultData(){
@@ -334,6 +335,7 @@ async function enableNotify(){
 
 function fireCalledAlert(){
   playChime();
+  setTimeout(playChime, 650);
   if('vibrate' in navigator) navigator.vibrate([200,100,200,100,200]);
   if('Notification' in window && Notification.permission === 'granted'){
     try{
@@ -376,6 +378,7 @@ function renderVisitor(data){
       <div class="ticket-stub">
         <div class="tlabel">あなたの番号</div>
         <div class="tnum">${my}</div>
+        <div class="tlabel">${myPartySize || 1} 名</div>
         <div class="status-msg ${calling ? 'calling' : ''}">${msg}</div>
       </div>
       ${notifyEnabled
@@ -384,8 +387,14 @@ function renderVisitor(data){
       <p class="hint">この画面はスクリーンショットしておくと安心です</p>
     `;
   } else {
-    stub = `<button class="cta" id="take-btn" ${busy?'disabled':''}>整理券を取る</button>`;
+    stub = `
+      <label class="field-label">人数</label>
+      <input class="text-input" id="party-size-input" type="number" inputmode="numeric" min="1" max="30" value="1" style="text-align:center; margin-bottom:12px;">
+      <button class="cta" id="take-btn" ${busy?'disabled':''}>整理券を取る</button>
+    `;
   }
+
+  const calledTicket = data.calledNumber > 0 ? data.tickets.find(t => t.number === data.calledNumber) : null;
 
   return `
     <div class="top-row">
@@ -398,6 +407,7 @@ function renderVisitor(data){
       <div class="now-serving">
         <div class="label">ただいまの呼び出し番号</div>
         <div class="num">${data.calledNumber > 0 ? data.calledNumber : '—'}</div>
+        ${calledTicket ? `<div class="label">${calledTicket.partySize || 1} 名</div>` : ''}
       </div>
       ${stub}
     </div>
@@ -425,14 +435,25 @@ function renderAdmin(data){
   const waiting = Math.max(0, data.nextNumber - 1 - data.calledNumber);
   const nextToCall = data.calledNumber + 1;
   const canCall = nextToCall <= data.nextNumber - 1;
+  const nextTicket = data.tickets.find(t => t.number === nextToCall);
+  const calledTicket = data.calledNumber > 0 ? data.tickets.find(t => t.number === data.calledNumber) : null;
   const historyItems = data.tickets.slice().reverse().slice(0, 15);
   const historyHtml = historyItems.length
     ? historyItems.map(t => `
         <li>
-          <span>No. ${t.number}　${fmtTime(t.time)}</span>
+          <span>No. ${t.number}　${t.partySize || 1}人　${fmtTime(t.time)}</span>
           <span class="badge ${t.source==='qr'?'qr':''}">${t.source==='qr' ? 'QR受付' : '窓口発行'}</span>
         </li>`).join('')
     : '<li class="empty">まだ発行履歴はありません</li>';
+
+  const waitingTickets = data.tickets.filter(t => t.number > data.calledNumber).sort((a,b) => a.number - b.number);
+  const waitingListHtml = waitingTickets.length
+    ? waitingTickets.map(t => `
+        <li>
+          <span>No. ${t.number}</span>
+          <span class="badge">${t.partySize || 1} 人</span>
+        </li>`).join('')
+    : '<li class="empty">現在お待ちの方はいません</li>';
 
   return `
     <div class="admin-header">
@@ -444,12 +465,12 @@ function renderAdmin(data){
     <div class="panel">
       <div class="stat-row">
         <div class="stat"><div class="n">${data.nextNumber - 1}</div><div class="l">発行済み</div></div>
-        <div class="stat"><div class="n">${data.calledNumber > 0 ? data.calledNumber : '—'}</div><div class="l">呼び出し中</div></div>
+        <div class="stat"><div class="n">${data.calledNumber > 0 ? data.calledNumber : '—'}</div><div class="l">呼び出し中${calledTicket ? '（'+(calledTicket.partySize||1)+'人）' : ''}</div></div>
         <div class="stat"><div class="n">${waiting}</div><div class="l">お待ちの組数</div></div>
       </div>
       <div class="call-block">
         <button class="cta" id="call-next" ${(!canCall||busy)?'disabled':''}>
-          ${canCall ? `次を呼ぶ（<span class="next-num">${nextToCall}</span> 番）` : 'すべて呼び出し済みです'}
+          ${canCall ? `次を呼ぶ（<span class="next-num">${nextToCall}</span> 番・${nextTicket ? (nextTicket.partySize||1) : '?'} 人）` : 'すべて呼び出し済みです'}
         </button>
         <div class="undo-row">
           <button class="small" id="call-undo" ${(data.calledNumber<=0||busy)?'disabled':''}>ひとつ前に戻す</button>
@@ -458,7 +479,14 @@ function renderAdmin(data){
     </div>
 
     <div class="panel">
+      <div class="divider">待ち一覧（番号・人数）</div>
+      <ul class="history" style="max-height:300px;">${waitingListHtml}</ul>
+    </div>
+
+    <div class="panel">
       <div class="divider">窓口での発行</div>
+      <label class="field-label">人数</label>
+      <input class="text-input" id="manual-party-input" type="number" inputmode="numeric" min="1" max="30" value="1" style="text-align:center; margin-bottom:12px;">
       <button class="ghost" id="manual-issue" ${busy?'disabled':''}>＋ 整理券を発行する</button>
     </div>
 
