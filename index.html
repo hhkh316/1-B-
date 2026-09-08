@@ -174,7 +174,7 @@ function renderVisitor(data){
       const ahead=my-called-1;
       msg=ahead<=0?'まもなくです。受付前でお待ちください':`あなたの前に ${ahead} 組`;
     }else{
-      msg='呼び出しが済んでいます。新たに整理券を取得する場合は、下のボタンから新しい整理券を取得できます。';
+      msg='呼び出しが済んでいます。受付へお声がけください。新たに整理券を取得する場合、下のボタンから新しい整理券を取得できます。';
     }
 
     const savedTicket=data.tickets.find(t=>t.number===my);
